@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fluid Dynamic Particle System</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #000; cursor: crosshair;
+    }
+    canvas { display: block; position: absolute; top: 0; left: 0; }
+
+    #hint {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      color: rgba(0, 255, 255, 0.3); font-size: 11px;
+      font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+      letter-spacing: 3px; z-index: 10;
+      pointer-events: none; user-select: none;
+      text-transform: uppercase; white-space: nowrap;
+    }
+
+    #fps {
+      position: fixed; top: 14px; right: 18px;
+      color: rgba(0, 255, 255, 0.2); font-size: 10px;
+      font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+      z-index: 10; pointer-events: none;
+    }
+
+    #state-indicator {
+      position: fixed; top: 14px; left: 18px;
+      font-size: 10px; font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+      letter-spacing: 3px; z-index: 10; pointer-events: none;
+      text-transform: uppercase; transition: color 0.3s;
+    }
+
+    #particle-count {
+      position: fixed; bottom: 14px; right: 18px;
+      color: rgba(0, 255, 255, 0.15); font-size: 10px;
+      font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+      z-index: 10; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="state-indicator">VORTEX</div>
+  <div id="fps">-- FPS</div>
+  <div id="particle-count">6000 PARTICLES</div>
+  <div id="hint">MOVE · VORTEX &nbsp;&nbsp; HOLD · ATTRACT &nbsp;&nbsp; RELEASE · BLAST</div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // ==================== Canvas Setup ====================
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const fpsEl = document.getElementById('fps');
+    const stateEl = document.getElementById('state-indicator');
+    const countEl = document.getElementById('particle-count');
+
+    let W = 0, H = 0;
+
+    function resize() {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // ==================== Configuration ====================
+    const PARTICLE_COUNT = 6000;   // 5,000–8,000 range
+    const DAMPING = 0.93;          // 0.92–0.94 fluid friction
+    const G = 1.5;                 // Attraction gravitational constant
+    const R_CONST = 4.0;           // Repulsion kinetic constant
+    const EPS = 20;               // Softening factor (prevents singularity)
+    const BLAST_FRAMES = 35;      // Repel state duration after mouse release
+    const VORTEX_RADIAL = 0.05;   // Weak inward radial pull
+    const VORTEX_TANGENT = 0.5;   // Dominant perpendicular tangential force
+
+    // ==================== Particle Data (Typed Arrays) ====================
+    // Each particle: x, y, vx, vy, ax, ay, m (mass 0.5–1.5)
+    const px  = new Float32Array(PARTICLE_COUNT);
+    const py  = new Float32Array(PARTICLE_COUNT);
+    const pvx = new Float32Array(PARTICLE_COUNT);
+    const pvy = new Float32Array(PARTICLE_COUNT);
+    const pax = new Float32Array(PARTICLE_COUNT);
+    const pay = new Float32Array(PARTICLE_COUNT);
+    const pm  = new Float32Array(PARTICLE_COUNT);
+
+    // Initialize
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      px[i]  = Math.random() * W;
+      py[i]  = Math.random() * H;
+      pvx[i] = 0;
+      pvy[i] = 0;
+      pax[i] = 0;
+      pay[i] = 0;
+      pm[i]  = 0.5 + Math.random() * 1.0; // mass ∈ [0.5, 1.5]
+    }
+
+    // ==================== Color Buckets (Batch Rendering) ====================
+    // Pre-allocated typed arrays for three color zones — avoids GC pressure
+    const coreX = new Float32Array(PARTICLE_COUNT);
+    const coreY = new Float32Array(PARTICLE_COUNT);
+    let coreCount = 0;
+
+    const midX = new Float32Array(PARTICLE_COUNT);
+    const midY = new Float32Array(PARTICLE_COUNT);
+    let midCount = 0;
+
+    const periX = new Float32Array(PARTICLE_COUNT);
+    const periY = new Float32Array(PARTICLE_COUNT);
+    let periCount = 0;
+
+    // ==================== Input ====================
+    let mouseX = W * 0.5;
+    let mouseY = H * 0.5;
+    let mouseDown = false;
+    let prevMouseDown = false;
+
+    canvas.addEventListener('mousemove', function (e) {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+    canvas.addEventListener('mousedown', function () { mouseDown = true; });
+    canvas.addEventListener('mouseup',   function () { mouseDown = false; });
+    canvas.addEventListener('mouseleave',function () { mouseDown = false; });
+
+    // Touch support
+    canvas.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      var t = e.touches[0];
+      if (t) { mouseX = t.clientX; mouseY = t.clientY; }
+    }, { passive: false });
+    canvas.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      var t = e.touches[0];
+      if (t) { mouseX = t.clientX; mouseY = t.clientY; }
+      mouseDown = true;
+    }, { passive: false });
+    canvas.addEventListener('touchend', function () { mouseDown = false; });
+
+    // ==================== State Machine ====================
+    // IDLE/HOVER → VORTEX ORBIT
+    // MOUSE_DOWN → ATTRACT (collapsing into sphere)
+    // MOUSE_UP   → REPEL  (shockwave blast, transient)
+    var state = 'vortex';
+    var blastTimer = 0;
+
+    function updateState() {
+      if (mouseDown) {
+        state = 'attract';
+        blastTimer = 0;
+      } else {
+        if (prevMouseDown) {
+          // Just released — trigger blast
+          state = 'repel';
+          blastTimer = BLAST_FRAMES;
+        } else if (blastTimer > 0) {
+          state = 'repel';
+          blastTimer--;
+        } else {
+          state = 'vortex';
+        }
+      }
+      prevMouseDown = mouseDown;
+    }
+
+    // ==================== Animation Loop ====================
+    var frameCount = 0;
+    var fpsTime = performance.now();
+
+    // State indicator colors
+    var stateColors = {
+      vortex:  'rgba(0, 255, 255, 0.3)',
+      attract: 'rgba(240, 255, 255, 0.6)',
+      repel:   'rgba(255, 180, 80, 0.6)'
+    };
+
+    function animate() {
+      updateState();
+
+      // ---- Update UI ----
+      stateEl.textContent = state;
+      stateEl.style.color = stateColors[state];
+
+      // ---- Motion Blur Trail ----
+      // Do NOT clearRect. Fill ultra-low alpha black for silk-like 4-frame trails.
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.fillRect(0, 0, W, H);
+
+      // ---- Additive Blending ----
+      ctx.globalCompositeOperation = 'screen';
+
+      var targetX = mouseX;
+      var targetY = mouseY;
+
+      // Reset buckets
+      coreCount = 0;
+      midCount = 0;
+      periCount = 0;
+
+      // ---- Physics + Bucketing ----
+      for (var i = 0; i < PARTICLE_COUNT; i++) {
+        var x = px[i], y = py[i];
+        var vx = pvx[i], vy = pvy[i];
+        var m = pm[i];
+
+        // Distance vector to target
+        var dx = targetX - x;
+        var dy = targetY - y;
+        var r = Math.sqrt(dx * dx + dy * dy);
+
+        // Reset acceleration
+        var ax = 0, ay = 0;
+
+        if (r > 0.1) { // avoid division by zero at singularity
+
+          if (state === 'attract') {
+            // ====== ATTRACT (Inward Gravity) ======
+            // a⃗ = (d⃗/r) × (G·m) / (r + ε)
+            var force = (G * m) / (r + EPS);
+            ax = (dx / r) * force;
+            ay = (dy / r) * force;
+
+          } else if (state === 'repel') {
+            // ====== REPEL (Kinetic Blast) ======
+            // a⃗ = -(d⃗/r) × R / ((r²/1000) + ε)
+            var rForce = R_CONST / ((r * r / 1000) + EPS);
+            ax = -(dx / r) * rForce;
+            ay = -(dy / r) * rForce;
+
+          } else {
+            // ====== VORTEX ORBIT (Cosmic Swirling) ======
+            // Tangential + weak radial — creates galactic spiral, not rigid circle
+            var nx = dx / r;  // normalizedX
+            var ny = dy / r;  // normalizedY
+            vx += (nx * VORTEX_RADIAL - ny * VORTEX_TANGENT) * m;
+            vy += (ny * VORTEX_RADIAL + nx * VORTEX_TANGENT) * m;
+          }
+        }
+
+        // Apply acceleration to velocity
+        vx += ax;
+        vy += ay;
+
+        // ---- Fluid Friction (Damping) ----
+        // vx *= 0.93; vy *= 0.93;
+        vx *= DAMPING;
+        vy *= DAMPING;
+
+        // ---- Update Position ----
+        x += vx;
+        y += vy;
+
+        // ---- Wrap Around Edges ----
+        if (x < 0)  x += W;
+        else if (x > W) x -= W;
+        if (y < 0)  y += H;
+        else if (y > H) y -= H;
+
+        // Write back to arrays
+        px[i]  = x;
+        py[i]  = y;
+        pvx[i] = vx;
+        pvy[i] = vy;
+
+        // ---- Dynamic Chromatic Gradient ----
+        // Color based on velocity magnitude v = √(vx²+vy²) and distance r
+        // Use v² for comparison (avoids sqrt)
+        var vSq = vx * vx + vy * vy;
+
+        if (r < 30 || vSq > 225) {
+          // Core / High Velocity (r<30 or v>15): Pure overexposed white-hot
+          coreX[coreCount] = x;
+          coreY[coreCount] = y;
+          coreCount++;
+        } else if (r > 200) {
+          // Periphery / Dissipation (r>200): Fading deep aqua-blue
+          periX[periCount] = x;
+          periY[periCount] = y;
+          periCount++;
+        } else {
+          // Mid-range / Orbit: Saturated electric cyan/neon teal
+          midX[midCount] = x;
+          midY[midCount] = y;
+          midCount++;
+        }
+      }
+
+      // ---- Batch Render (3 color zones) ----
+      // This minimizes fillStyle changes from 6000→3 per frame
+
+      // Zone 1: Core — white-hot (rgba(240, 255, 255, 1.0))
+      ctx.fillStyle = 'rgba(240, 255, 255, 1.0)';
+      for (var c = 0; c < coreCount; c++) {
+        ctx.fillRect(coreX[c], coreY[c], 2.5, 2.5);
+      }
+
+      // Zone 2: Mid-range — electric cyan (rgba(0, 255, 255, 0.8))
+      ctx.fillStyle = 'rgba(0, 255, 255, 0.8)';
+      for (var c = 0; c < midCount; c++) {
+        ctx.fillRect(midX[c], midY[c], 1.8, 1.8);
+      }
+
+      // Zone 3: Periphery — deep aqua-blue (rgba(0, 139, 139, 0.3))
+      ctx.fillStyle = 'rgba(0, 139, 139, 0.3)';
+      for (var c = 0; c < periCount; c++) {
+        ctx.fillRect(periX[c], periY[c], 1.2, 1.2);
+      }
+
+      // ---- FPS Counter ----
+      frameCount++;
+      var now = performance.now();
+      if (now - fpsTime >= 500) {
+        var fps = Math.round((frameCount * 1000) / (now - fpsTime));
+        fpsEl.textContent = fps + ' FPS';
+        frameCount = 0;
+        fpsTime = now;
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    // Start
+    countEl.textContent = PARTICLE_COUNT + ' PARTICLES';
+    animate();
+  })();
+  </script>
+</body>
+</html>

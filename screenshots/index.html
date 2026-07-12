@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Particle Launcher — 30 Shapes Gallery</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #000511;
+      --panel: rgba(10, 18, 40, 0.82);
+      --text: #e6f7ff;
+      --muted: rgba(230, 247, 255, 0.55);
+      --accent: #66ffcc;
+      --border: rgba(102, 255, 204, 0.12);
+    }
+
+    body {
+      font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+      background: radial-gradient(ellipse at top, #0a1a3a 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 48px 24px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 600;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #66ffcc, #4488ff, #cc66ff, #ff9944);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 2px;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      text-align: center;
+      padding: 12px 20px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-top: 4px;
+    }
+
+    .filters {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .filter-btn:hover,
+    .filter-btn.active {
+      background: rgba(102, 255, 204, 0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 16px rgba(102, 255, 204, 0.15);
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .card {
+      position: relative;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+      backdrop-filter: blur(8px);
+    }
+
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(102, 255, 204, 0.1);
+      border-color: rgba(102, 255, 204, 0.35);
+    }
+
+    .card.hidden { display: none; }
+
+    .card-image {
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.5s ease;
+    }
+
+    .card:hover .card-image {
+      transform: scale(1.05);
+    }
+
+    .card-info {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .card-index {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 5, 17, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      backdrop-filter: blur(4px);
+    }
+
+    .card-cat {
+      display: inline-block;
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      border: 1px solid currentColor;
+    }
+
+    .card-cat.Nature { color: #78dc8c; border-color: rgba(120, 220, 140, 0.4); }
+    .card-cat.Geometry { color: #78b4ff; border-color: rgba(120, 180, 255, 0.4); }
+    .card-cat.Sci-Fi { color: #c88cff; border-color: rgba(200, 140, 255, 0.4); }
+    .card-cat.Life { color: #ffb48c; border-color: rgba(255, 180, 140, 0.4); }
+    .card-cat.Abstract { color: #ff8cb4; border-color: rgba(255, 140, 180, 0.4); }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      color: var(--text);
+    }
+
+    .card-shape {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-family: 'SF Mono', monospace;
+    }
+
+    /* Lightbox */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0, 5, 17, 0.96);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .lightbox.open {
+      display: flex;
+      opacity: 1;
+    }
+
+    .lightbox-img {
+      max-width: 92vw;
+      max-height: 84vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 0 60px rgba(102, 255, 204, 0.15);
+    }
+
+    .lightbox-info {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .lightbox-title {
+      font-size: 18px;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+    }
+
+    .lightbox-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .lightbox-close,
+    .lightbox-prev,
+    .lightbox-next {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(8px);
+    }
+
+    .lightbox-close:hover,
+    .lightbox-prev:hover,
+    .lightbox-next:hover {
+      background: rgba(102, 255, 204, 0.15);
+      border-color: var(--accent);
+    }
+
+    .lightbox-close { top: 24px; right: 24px; }
+    .lightbox-prev { left: 24px; top: 50%; transform: translateY(-50%); }
+    .lightbox-next { right: 24px; top: 50%; transform: translateY(-50%); }
+
+    .lightbox-counter {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 2px;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 64px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 1.5px;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 24px 12px; }
+      .gallery { grid-template-columns: 1fr; }
+      .lightbox-prev,
+      .lightbox-next { width: 40px; height: 40px; }
+      .lightbox-prev { left: 12px; }
+      .lightbox-next { right: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Particle Launcher</h1>
+    <div class="subtitle">30 Particle Shapes Gallery</div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value">30</div>
+        <div class="stat-label">Shapes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">5</div>
+        <div class="stat-label">Categories</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">1600×1000</div>
+        <div class="stat-label">Resolution</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="Nature">Nature</button>
+    <button class="filter-btn" data-filter="Geometry">Geometry</button>
+    <button class="filter-btn" data-filter="Sci-Fi">Sci-Fi</button>
+    <button class="filter-btn" data-filter="Life">Life</button>
+    <button class="filter-btn" data-filter="Abstract">Abstract</button>
+  </div>
+
+  <main class="gallery" id="gallery"></main>
+
+  <div class="lightbox" id="lightbox">
+    <div class="lightbox-counter" id="lb-counter">01 / 30</div>
+    <button class="lightbox-close" id="lb-close">&times;</button>
+    <button class="lightbox-prev" id="lb-prev">&#10094;</button>
+    <button class="lightbox-next" id="lb-next">&#10095;</button>
+    <img class="lightbox-img" id="lb-img" src="" alt="" />
+    <div class="lightbox-info">
+      <div class="lightbox-title" id="lb-title"></div>
+      <div class="lightbox-meta" id="lb-meta"></div>
+    </div>
+  </div>
+
+  <footer>
+    Generated from Particle Launcher screenshots
+  </footer>
+
+  <script>
+    const shapes = [
+      { id: 'christmas_tree', name: 'Christmas Tree', cat: 'Nature' },
+      { id: 'cherry_blossom', name: 'Cherry Blossom', cat: 'Nature' },
+      { id: 'waterfall', name: 'Waterfall', cat: 'Nature' },
+      { id: 'cloud', name: 'Cloud', cat: 'Nature' },
+      { id: 'flame', name: 'Flame', cat: 'Nature' },
+      { id: 'wave', name: 'Ocean Wave', cat: 'Nature' },
+      { id: 'mountain', name: 'Mountain', cat: 'Nature' },
+      { id: 'sphere', name: 'Sphere', cat: 'Geometry' },
+      { id: 'torus', name: 'Torus', cat: 'Geometry' },
+      { id: 'cube', name: 'Cube', cat: 'Geometry' },
+      { id: 'pyramid', name: 'Pyramid', cat: 'Geometry' },
+      { id: 'heart', name: 'Heart', cat: 'Geometry' },
+      { id: 'star5', name: 'Five-Pointed Star', cat: 'Geometry' },
+      { id: 'infinity', name: 'Infinity', cat: 'Geometry' },
+      { id: 'spiral', name: 'Spiral', cat: 'Geometry' },
+      { id: 'blackhole', name: 'Black Hole', cat: 'Sci-Fi' },
+      { id: 'wormhole', name: 'Wormhole', cat: 'Sci-Fi' },
+      { id: 'energy_orb', name: 'Energy Orb', cat: 'Sci-Fi' },
+      { id: 'matrix_rain', name: 'Matrix Rain', cat: 'Sci-Fi' },
+      { id: 'dna', name: 'DNA Helix', cat: 'Sci-Fi' },
+      { id: 'galaxy', name: 'Galaxy', cat: 'Sci-Fi' },
+      { id: 'tornado', name: 'Tornado', cat: 'Sci-Fi' },
+      { id: 'jellyfish', name: 'Jellyfish', cat: 'Life' },
+      { id: 'butterfly', name: 'Butterfly', cat: 'Life' },
+      { id: 'fish_school', name: 'Fish School', cat: 'Life' },
+      { id: 'flower', name: 'Flower', cat: 'Life' },
+      { id: 'firework', name: 'Firework', cat: 'Abstract' },
+      { id: 'kaleidoscope', name: 'Kaleidoscope', cat: 'Abstract' },
+      { id: 'vortex', name: 'Vortex', cat: 'Abstract' },
+      { id: 'lightning', name: 'Lightning', cat: 'Abstract' }
+    ];
+
+    const gallery = document.getElementById('gallery');
+    const lightbox = document.getElementById('lightbox');
+    const lbImg = document.getElementById('lb-img');
+    const lbTitle = document.getElementById('lb-title');
+    const lbMeta = document.getElementById('lb-meta');
+    const lbCounter = document.getElementById('lb-counter');
+    const lbClose = document.getElementById('lb-close');
+    const lbPrev = document.getElementById('lb-prev');
+    const lbNext = document.getElementById('lb-next');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+
+    let currentIndex = 0;
+    let filteredShapes = [...shapes];
+
+    function renderGallery(filter = 'all') {
+      gallery.innerHTML = '';
+      filteredShapes = filter === 'all' ? [...shapes] : shapes.filter(s => s.cat === filter);
+
+      filteredShapes.forEach((shape, idx) => {
+        const originalIdx = shapes.indexOf(shape) + 1;
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.cat = shape.cat;
+        card.innerHTML = `
+          <span class="card-index">${String(originalIdx).padStart(2, '0')}</span>
+          <img class="card-image" src="${String(originalIdx).padStart(2, '0')}_${shape.id}.png" alt="${shape.name}" loading="lazy" />
+          <div class="card-info">
+            <span class="card-cat ${shape.cat}">${shape.cat}</span>
+            <div class="card-title">${shape.name}</div>
+            <div class="card-shape">${shape.id}</div>
+          </div>
+        `;
+        card.addEventListener('click', () => openLightbox(idx));
+        gallery.appendChild(card);
+      });
+    }
+
+    function openLightbox(idx) {
+      currentIndex = idx;
+      updateLightbox();
+      lightbox.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      lightbox.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function updateLightbox() {
+      const shape = filteredShapes[currentIndex];
+      const originalIdx = shapes.indexOf(shape) + 1;
+      lbImg.src = `${String(originalIdx).padStart(2, '0')}_${shape.id}.png`;
+      lbTitle.textContent = shape.name;
+      lbMeta.textContent = `${shape.cat} · ${shape.id}`;
+      lbCounter.textContent = `${String(originalIdx).padStart(2, '0')} / 30`;
+    }
+
+    function nextImage() {
+      currentIndex = (currentIndex + 1) % filteredShapes.length;
+      updateLightbox();
+    }
+
+    function prevImage() {
+      currentIndex = (currentIndex - 1 + filteredShapes.length) % filteredShapes.length;
+      updateLightbox();
+    }
+
+    // Events
+    lbClose.addEventListener('click', closeLightbox);
+    lbNext.addEventListener('click', (e) => { e.stopPropagation(); nextImage(); });
+    lbPrev.addEventListener('click', (e) => { e.stopPropagation(); prevImage(); });
+    lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+
+    document.addEventListener('keydown', (e) => {
+      if (!lightbox.classList.contains('open')) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowRight') nextImage();
+      if (e.key === 'ArrowLeft') prevImage();
+    });
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderGallery(btn.dataset.filter);
+      });
+    });
+
+    renderGallery();
+  </script>
+</body>
+</html>

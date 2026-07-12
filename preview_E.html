@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>方案 E 预览 — 暗粒子 + 亮饰品 + 暗角遮罩 + 粒子排斥</title>
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #05070a;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+      cursor: none;
+    }
+    #canvas-wrap { position: fixed; inset: 0; }
+    canvas { display: block; }
+
+    /* 顶部标题 */
+    #title {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      font-size: 14px; font-weight: 500; opacity: 0.85;
+      padding: 8px 20px; border-radius: 20px;
+      background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.08);
+      pointer-events: none; z-index: 10;
+    }
+    /* 底部状态栏 */
+    #status {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      font-size: 13px; opacity: 0.6;
+      padding: 8px 24px; border-radius: 20px;
+      background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.08);
+      pointer-events: none; z-index: 10;
+      white-space: nowrap;
+    }
+    /* 左上角方案标记 */
+    #badge {
+      position: fixed; top: 20px; left: 20px;
+      font-size: 12px; font-weight: 600;
+      padding: 6px 14px; border-radius: 6px;
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid rgba(0, 255, 136, 0.4);
+      color: #00ff88;
+      pointer-events: none; z-index: 10;
+    }
+    /* 右上角说明 */
+    #desc {
+      position: fixed; top: 20px; right: 20px;
+      font-size: 11px; opacity: 0.5;
+      max-width: 260px; line-height: 1.6;
+      text-align: right;
+      pointer-events: none; z-index: 10;
+    }
+    /* 自定义光标 */
+    #cursor {
+      position: fixed; width: 32px; height: 32px;
+      border: 1.5px solid rgba(255,255,255,0.7);
+      border-radius: 50%;
+      pointer-events: none; z-index: 100;
+      transform: translate(-50%, -50%);
+      transition: width 0.2s, height 0.2s, opacity 0.2s, background 0.2s;
+      mix-blend-mode: screen;
+    }
+    #cursor::after {
+      content: ''; position: absolute;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 4px; height: 4px;
+      background: #fff; border-radius: 50%;
+    }
+    #cursor.hover {
+      width: 56px; height: 56px;
+      border-color: #fff;
+      background: rgba(255,255,255,0.1);
+    }
+    /* 饰品标签 */
+    #label {
+      position: fixed; padding: 6px 12px;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      font-size: 12px;
+      pointer-events: none; z-index: 50;
+      opacity: 0; transition: opacity 0.2s;
+      transform: translate(-50%, -100%);
+      white-space: nowrap;
+    }
+    #label.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div id="canvas-wrap"></div>
+  <div id="badge">方案 E · 预览版</div>
+  <div id="title">暗粒子 + 亮饰品 + 暗角遮罩 + 粒子排斥</div>
+  <div id="status">移动鼠标查看效果 | 悬停饰品高亮</div>
+  <div id="desc">
+    粒子整体压暗 45%<br>
+    饰品加白色描边和发光<br>
+    饰品背后暗角遮罩<br>
+    鼠标靠近粒子自动让出空间
+  </div>
+  <div id="cursor"></div>
+  <div id="label"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    // ========== 配置 ==========
+    const PARTICLE_COUNT = 12000;
+    const ORNAMENT_COUNT = 12;
+
+    const ORNAMENT_POSITIONS = [
+      new THREE.Vector3(-1.8, 1.0, 0),
+      new THREE.Vector3(-0.6, 1.4, 0),
+      new THREE.Vector3(0.9, 1.2, 0),
+      new THREE.Vector3(2.0, 0.8, 0),
+      new THREE.Vector3(-2.2, 0.0, 0),
+      new THREE.Vector3(-0.9, 0.3, 0),
+      new THREE.Vector3(0.7, 0.5, 0),
+      new THREE.Vector3(2.1, 0.0, 0),
+      new THREE.Vector3(-1.7, -1.0, 0),
+      new THREE.Vector3(-0.4, -0.8, 0),
+      new THREE.Vector3(1.0, -1.1, 0),
+      new THREE.Vector3(2.0, -0.9, 0),
+    ];
+
+    const ORNAMENT_DATA = [
+      { name: 'VS Code',       icon: 'VS', color: 0x00ff88 },
+      { name: '终端',          icon: '⟩_', color: 0x4488ff },
+      { name: 'Chrome',        icon: '🌐', color: 0xffcc00 },
+      { name: '访达',          icon: '📁', color: 0x88ccff },
+      { name: 'Safari',        icon: '🧭', color: 0x66ddff },
+      { name: '照片',          icon: '🖼', color: 0xff66cc },
+      { name: 'Spotify',       icon: '♫', color: 0x1ed760 },
+      { name: '音乐',          icon: '♪', color: 0xff5566 },
+      { name: 'Slack',         icon: '💬', color: 0xff8866 },
+      { name: '备忘录',        icon: '📝', color: 0xffdd44 },
+      { name: '日历',          icon: '📅', color: 0xff4488 },
+      { name: '系统设置',      icon: '⚙', color: 0xaaaaaa },
+    ];
+
+    // 方案 E 参数
+    const SCHEME = {
+      particleAlpha: 0.45,
+      particleCore: 0.4,
+      particleHalo: 0.25,
+      particleGlow: 0.4,
+      ornamentEmissive: 0.8,
+      ornamentEmissiveHover: 1.5,
+      ringOpacity: 0.9,
+      ringOpacityHover: 1.0,
+      maskOpacity: 0.55,
+      maskRadius: 0.7,
+      repel: 2.5,
+      repelRadius: 1.2,
+    };
+
+    // ========== Three.js 初始化 ==========
+    const wrap = document.getElementById('canvas-wrap');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x05070a, 1);
+    wrap.appendChild(renderer.domElement);
+
+    // ========== 粒子着色器 ==========
+    const vertexShader = /* glsl */ `
+      attribute vec3 basePos;
+      attribute float phase;
+      attribute float size;
+      attribute vec3 color;
+      varying vec3 vColor;
+      varying float vAlpha;
+      uniform float uTime;
+      uniform vec2 uMousePos;
+      uniform float uRepel;
+      uniform float uRepelRadius;
+      uniform float uGlobalAlpha;
+
+      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+      vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+      float snoise(vec3 v) {
+        const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+        const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+        vec3 i  = floor(v + dot(v, C.yyy));
+        vec3 x0 = v - i + dot(i, C.xxx);
+        vec3 g = step(x0.yzx, x0.xyz);
+        vec3 l = 1.0 - g;
+        vec3 i1 = min(g.xyz, l.zxy);
+        vec3 i2 = max(g.xyz, l.zxy);
+        vec3 x1 = x0 - i1 + C.xxx;
+        vec3 x2 = x0 - i2 + C.yyy;
+        vec3 x3 = x0 - D.yyy;
+        i = mod289(i);
+        vec4 p = permute(permute(permute(
+                  i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+        float n_ = 0.142857142857;
+        vec3 ns = n_ * D.wyz - D.xzx;
+        vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+        vec4 x_ = floor(j * ns.z);
+        vec4 y_ = floor(j - 7.0 * x_);
+        vec4 x = x_ * ns.x + ns.yyyy;
+        vec4 y = y_ * ns.x + ns.yyyy;
+        vec4 h = 1.0 - abs(x) - abs(y);
+        vec4 b0 = vec4(x.xy, y.xy);
+        vec4 b1 = vec4(x.zw, y.zw);
+        vec4 s0 = floor(b0)*2.0 + 1.0;
+        vec4 s1 = floor(b1)*2.0 + 1.0;
+        vec4 sh = -step(h, vec4(0.0));
+        vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+        vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+        vec3 p0 = vec3(a0.xy, h.x);
+        vec3 p1 = vec3(a0.zw, h.y);
+        vec3 p2 = vec3(a1.xy, h.z);
+        vec3 p3 = vec3(a1.zw, h.w);
+        vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+        p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+        vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+        m = m * m;
+        return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+      }
+
+      void main() {
+        vec3 pos = basePos;
+        // Simplex 噪声漂移
+        pos += vec3(
+          snoise(pos * 0.5 + uTime * 0.1),
+          snoise(pos * 0.5 + uTime * 0.1 + 100.0),
+          snoise(pos * 0.5 + uTime * 0.1 + 200.0)
+        ) * 0.12;
+        // 呼吸
+        pos.y += sin(uTime * 1.2 + phase) * 0.05;
+        // 鼠标排斥
+        vec2 toMouse = pos.xy - uMousePos;
+        float dist = length(toMouse);
+        float falloff = exp(-dist * dist / (uRepelRadius * uRepelRadius));
+        pos.xy += normalize(toMouse + 0.001) * uRepel * falloff;
+
+        vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = size * (300.0 / -mv.z);
+        vColor = color;
+        vAlpha = uGlobalAlpha;
+      }
+    `;
+
+    const fragmentShader = /* glsl */ `
+      varying vec3 vColor;
+      varying float vAlpha;
+      uniform float uCore;
+      uniform float uHalo;
+      uniform float uGlow;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length(c);
+        if (d > 0.5) discard;
+        float halo = exp(-d * 1.8) * uHalo;
+        float ring = (smoothstep(0.45, 0.35, d) - smoothstep(0.35, 0.2, d)) * uGlow;
+        float core = exp(-d * 6.0) * uCore;
+        float alpha = (halo + ring + core) * vAlpha;
+        vec3 col = vColor * (halo + ring * 0.7) + mix(vColor, vec3(1.0), 0.35) * core;
+        gl_FragColor = vec4(col, alpha);
+      }
+    `;
+
+    // ========== 创建粒子（星云形态）==========
+    const geometry = new THREE.BufferGeometry();
+    const positions = [];
+    const colors = [];
+    const phases = [];
+    const sizes = [];
+    const PARTICLE_COLOR_1 = new THREE.Color(0x4488ff);
+    const PARTICLE_COLOR_2 = new THREE.Color(0xaa66ff);
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      // 球形星云分布
+      const r = 0.3 + Math.pow(Math.random(), 0.7) * 2.5;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const x = r * Math.sin(phi) * Math.cos(theta) * 1.4;
+      const y = r * Math.sin(phi) * Math.sin(theta) * 0.9;
+      const z = r * Math.cos(phi) * 0.3;
+      positions.push(x, y, z);
+      // 颜色：内部偏亮蓝，外部偏紫
+      const t = r / 2.5;
+      const c = PARTICLE_COLOR_1.clone().lerp(PARTICLE_COLOR_2, t);
+      // 中心更亮
+      if (r < 0.8) c.lerp(new THREE.Color(0xffffff), 0.3);
+      colors.push(c.r, c.g, c.b);
+      phases.push(Math.random() * Math.PI * 2);
+      sizes.push(1.2 + Math.random() * 2.5);
+    }
+    geometry.setAttribute('basePos', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('phase', new THREE.Float32BufferAttribute(phases, 1));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PARTICLE_COUNT * 3), 3));
+
+    const particleMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uMousePos: { value: new THREE.Vector2(100, 100) },
+        uRepel: { value: SCHEME.repel },
+        uRepelRadius: { value: SCHEME.repelRadius },
+        uGlobalAlpha: { value: SCHEME.particleAlpha },
+        uCore: { value: SCHEME.particleCore },
+        uHalo: { value: SCHEME.particleHalo },
+        uGlow: { value: SCHEME.particleGlow }
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexColors: true
+    });
+
+    const points = new THREE.Points(geometry, particleMaterial);
+    scene.add(points);
+
+    // ========== 创建饰品 ==========
+    function createIconTexture(icon, color) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.font = 'bold 64px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // 描边
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 6;
+      ctx.strokeText(icon, 64, 68);
+      // 填充
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(icon, 64, 68);
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const ornaments = [];
+    for (let i = 0; i < ORNAMENT_COUNT; i++) {
+      const data = ORNAMENT_DATA[i];
+      const group = new THREE.Group();
+      group.position.copy(ORNAMENT_POSITIONS[i]);
+
+      // 暗角遮罩（最底层）
+      const maskGeo = new THREE.CircleGeometry(SCHEME.maskRadius, 64);
+      const maskMat = new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: SCHEME.maskOpacity,
+        side: THREE.DoubleSide
+      });
+      const mask = new THREE.Mesh(maskGeo, maskMat);
+      mask.position.z = -0.08;
+      mask.renderOrder = -1;
+      group.add(mask);
+
+      // 气泡（玻璃质感）
+      const bubbleGeo = new THREE.SphereGeometry(0.32, 32, 32);
+      const bubbleMat = new THREE.MeshPhysicalMaterial({
+        color: data.color,
+        transparent: true,
+        opacity: 0.22,
+        emissive: data.color,
+        emissiveIntensity: SCHEME.ornamentEmissive,
+        roughness: 0.15,
+        metalness: 0.1,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1,
+        transmission: 0.4,
+        thickness: 0.5,
+        ior: 1.4
+      });
+      const bubble = new THREE.Mesh(bubbleGeo, bubbleMat);
+      group.add(bubble);
+
+      // 外环（白色描边）
+      const ringGeo = new THREE.RingGeometry(0.36, 0.40, 64);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: SCHEME.ringOpacity,
+        side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.z = 0.01;
+      group.add(ring);
+
+      // 内环（彩色辅助）
+      const innerRingGeo = new THREE.RingGeometry(0.30, 0.32, 64);
+      const innerRingMat = new THREE.MeshBasicMaterial({
+        color: data.color,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide
+      });
+      const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+      innerRing.position.z = 0.01;
+      group.add(innerRing);
+
+      // 图标
+      const spriteMat = new THREE.SpriteMaterial({
+        map: createIconTexture(data.icon, data.color),
+        transparent: true,
+        opacity: 0.95
+      });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.4, 0.4, 1);
+      group.add(sprite);
+
+      scene.add(group);
+      ornaments.push({
+        group, bubble, bubbleMat, ring, ringMat, innerRing, innerRingMat, mask, maskMat,
+        data, baseScale: 1, hovered: false
+      });
+    }
+
+    // ========== 鼠标交互 ==========
+    const raycaster = new THREE.Raycaster();
+    const mouseNDC = new THREE.Vector2();
+    const cursorEl = document.getElementById('cursor');
+    const labelEl = document.getElementById('label');
+    const statusEl = document.getElementById('status');
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    const worldMouse = new THREE.Vector3();
+
+    window.addEventListener('mousemove', (e) => {
+      cursorEl.style.left = e.clientX + 'px';
+      cursorEl.style.top = e.clientY + 'px';
+
+      mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouseNDC, camera);
+      raycaster.ray.intersectPlane(plane, worldMouse);
+      particleMaterial.uniforms.uMousePos.value.set(worldMouse.x, worldMouse.y);
+
+      // 检测饰品悬停
+      let hoveredOrnament = null;
+      let minDist = Infinity;
+      for (const o of ornaments) {
+        const dist = raycaster.ray.distanceToPoint(o.group.position);
+        if (dist < 0.4 && dist < minDist) {
+          minDist = dist;
+          hoveredOrnament = o;
+        }
+      }
+
+      for (const o of ornaments) {
+        if (o === hoveredOrnament && !o.hovered) {
+          o.hovered = true;
+          o.bubbleMat.emissiveIntensity = SCHEME.ornamentEmissiveHover;
+          o.bubble.scale.setScalar(1.35);
+          o.ringMat.opacity = SCHEME.ringOpacityHover;
+          o.ring.scale.setScalar(1.3);
+          o.innerRing.scale.setScalar(1.3);
+          o.maskMat.opacity = SCHEME.maskOpacity + 0.15;
+          cursorEl.classList.add('hover');
+          labelEl.textContent = `${o.data.name} — 比耶停留选中`;
+          labelEl.classList.add('visible');
+          labelEl.style.left = e.clientX + 'px';
+          labelEl.style.top = (e.clientY - 20) + 'px';
+          statusEl.textContent = `悬停: ${o.data.name}`;
+          statusEl.style.color = `#${o.data.color.toString(16).padStart(6, '0')}`;
+        } else if (o !== hoveredOrnament && o.hovered) {
+          o.hovered = false;
+          o.bubbleMat.emissiveIntensity = SCHEME.ornamentEmissive;
+          o.bubble.scale.setScalar(1.0);
+          o.ringMat.opacity = SCHEME.ringOpacity;
+          o.ring.scale.setScalar(1.0);
+          o.innerRing.scale.setScalar(1.0);
+          o.maskMat.opacity = SCHEME.maskOpacity;
+          cursorEl.classList.remove('hover');
+          labelEl.classList.remove('visible');
+          statusEl.textContent = '移动鼠标查看效果 | 悬停饰品高亮';
+          statusEl.style.color = '';
+        }
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ========== 动画循环 ==========
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = clock.getElapsedTime();
+      particleMaterial.uniforms.uTime.value = time;
+
+      // 整体缓慢旋转
+      points.rotation.y = Math.sin(time * 0.1) * 0.15;
+      points.rotation.x = Math.cos(time * 0.08) * 0.08;
+
+      // 饰品动画
+      for (const o of ornaments) {
+        o.group.rotation.z += 0.003;
+        if (!o.hovered) {
+          // 呼吸
+          const breathe = Math.sin(time * 1.5 + o.group.position.x) * 0.04;
+          o.group.position.y = ORNAMENT_POSITIONS[ornaments.indexOf(o)].y + breathe;
+          // 外环脉冲
+          const pulse = 1.0 + Math.sin(time * 2 + o.group.position.x * 3) * 0.08;
+          o.ring.scale.setScalar(pulse);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

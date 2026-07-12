@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Particle Launcher</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #000511; font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+      cursor: none;
+    }
+    canvas { display: block; }
+
+    /* ========== 自定义鼠标光标 ========== */
+    #cursor-ring {
+      position: fixed; pointer-events: none; z-index: 100;
+      width: 32px; height: 32px;
+      border: 1.5px solid rgba(102,255,204,0.85);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 12px rgba(102,255,204,0.6), inset 0 0 8px rgba(102,255,204,0.3);
+      transition: width 0.18s, height 0.18s, border-color 0.18s, opacity 0.2s;
+      mix-blend-mode: screen;
+    }
+    #cursor-dot {
+      position: fixed; pointer-events: none; z-index: 100;
+      width: 4px; height: 4px;
+      background: #fff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 8px #fff;
+    }
+    #cursor-ring.active {
+      width: 56px; height: 56px;
+      border-color: rgba(255,180,80,0.95);
+      box-shadow: 0 0 20px rgba(255,180,80,0.7), inset 0 0 12px rgba(255,180,80,0.4);
+    }
+    #cursor-ring.burst {
+      width: 90px; height: 90px;
+      border-color: rgba(255,255,255,0.9);
+      box-shadow: 0 0 30px rgba(255,255,255,0.8);
+    }
+
+    #loading {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: #fff; font-size: 14px; z-index: 10;
+      text-shadow: 0 0 10px rgba(100,200,255,0.5);
+      transition: opacity 0.5s;
+    }
+
+    #video {
+      position: fixed; top: 12px; right: 12px;
+      width: 160px; height: 120px; border-radius: 10px;
+      opacity: 0.4; z-index: 5; transform: scaleX(-1);
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: opacity 0.5s;
+    }
+    #video:hover { opacity: 0.8; }
+
+    #status {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.5); font-size: 13px;
+      z-index: 10; transition: all 0.3s ease;
+      text-shadow: 0 0 8px rgba(0,0,0,0.8);
+      letter-spacing: 0.5px;
+    }
+
+    #gesture-hints {
+      position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 16px; z-index: 10;
+      opacity: 0.3; transition: opacity 0.5s;
+    }
+    #gesture-hints:hover { opacity: 0.8; }
+
+    .hint-item {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 4px; color: rgba(255,255,255,0.6);
+      font-size: 10px; text-transform: uppercase;
+    }
+    .hint-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    #shape-indicator {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      color: rgba(102,255,204,0.85); font-size: 15px;
+      z-index: 10; letter-spacing: 3px; font-weight: 500;
+      text-shadow: 0 0 14px rgba(102,255,204,0.5);
+      transition: all 0.4s ease;
+      text-align: center;
+    }
+    #shape-indicator .shape-cat {
+      font-size: 9px; letter-spacing: 4px;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 4px;
+    }
+    #shape-progress {
+      position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+      width: 220px; height: 2px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      overflow: hidden;
+      z-index: 10;
+    }
+    #shape-progress::after {
+      content: '';
+      display: block;
+      height: 100%;
+      width: var(--progress, 0%);
+      background: linear-gradient(90deg, rgba(102,255,204,0.2), #66ffcc);
+      box-shadow: 0 0 8px rgba(102,255,204,0.7);
+      transition: width 0.6s ease;
+    }
+
+    #ornament-label {
+      position: fixed; pointer-events: none; z-index: 15;
+      background: rgba(0,5,17,0.85);
+      border: 1px solid rgba(102,255,204,0.3);
+      border-radius: 8px; padding: 8px 14px;
+      color: #fff; font-size: 12px;
+      opacity: 0; transition: opacity 0.2s;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 0 15px rgba(102,255,204,0.15);
+    }
+    #ornament-label.visible { opacity: 1; }
+    #ornament-label .app-name {
+      font-size: 14px; font-weight: bold; margin-bottom: 3px;
+    }
+    #ornament-label .app-gesture {
+      font-size: 10px; color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+    }
+    #ornament-label .app-gesture span {
+      color: #66ffcc;
+    }
+
+    #fps {
+      position: fixed; top: 12px; left: 12px;
+      color: rgba(255,255,255,0.25); font-size: 10px;
+      z-index: 10;
+    }
+
+    /* ========== Shape Panel ========== */
+    #shape-panel {
+      position: fixed; left: 16px; top: 50%; transform: translateY(-50%);
+      z-index: 20; max-height: 80vh; overflow-y: auto;
+      background: rgba(0,5,17,0.85);
+      border: 1px solid rgba(102,255,204,0.15);
+      border-radius: 12px; padding: 14px;
+      backdrop-filter: blur(12px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+      width: 200px;
+    }
+    #shape-panel::-webkit-scrollbar { width: 4px; }
+    #shape-panel::-webkit-scrollbar-track { background: transparent; }
+    #shape-panel::-webkit-scrollbar-thumb { background: rgba(102,255,204,0.2); border-radius: 2px; }
+
+    .shape-category { margin-bottom: 12px; }
+    .shape-category:last-child { margin-bottom: 0; }
+    .shape-category[data-cat="Nature"]   .category-title { color: rgba(120,220,140,0.85); border-color: rgba(120,220,140,0.2); }
+    .shape-category[data-cat="Geometry"] .category-title { color: rgba(120,180,255,0.85); border-color: rgba(120,180,255,0.2); }
+    .shape-category[data-cat="Sci-Fi"]   .category-title { color: rgba(200,140,255,0.85); border-color: rgba(200,140,255,0.2); }
+    .shape-category[data-cat="Life"]     .category-title { color: rgba(255,180,140,0.85); border-color: rgba(255,180,140,0.2); }
+    .shape-category[data-cat="Abstract"] .category-title { color: rgba(255,140,180,0.85); border-color: rgba(255,140,180,0.2); }
+
+    .category-title {
+      color: rgba(102,255,204,0.6); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      margin-bottom: 6px; padding-bottom: 4px;
+      border-bottom: 1px solid rgba(102,255,204,0.1);
+      transition: all 0.3s;
+    }
+
+    .category-shapes {
+      display: flex; flex-wrap: wrap; gap: 4px;
+    }
+
+    .shape-btn {
+      padding: 4px 8px; border-radius: 6px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.5); font-size: 10px;
+      cursor: pointer; transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .shape-btn:hover {
+      background: rgba(102,255,204,0.1);
+      border-color: rgba(102,255,204,0.3);
+      color: rgba(255,255,255,0.8);
+    }
+    .shape-btn.active {
+      background: rgba(102,255,204,0.15);
+      border-color: rgba(102,255,204,0.5);
+      color: #66ffcc;
+      box-shadow: 0 0 8px rgba(102,255,204,0.2);
+    }
+
+    #panel-hint {
+      position: fixed; left: 16px; bottom: 60px;
+      color: rgba(255,255,255,0.2); font-size: 10px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">正在启动粒子发射器...</div>
+  <video id="video" autoplay playsinline></video>
+  <div id="shape-indicator"><span class="shape-cat">自然系</span>圣诞树</div>
+  <div id="shape-progress"></div>
+  <div id="cursor-ring"></div>
+  <div id="cursor-dot"></div>
+  <div id="ornament-label">
+    <div class="app-name"></div>
+    <div class="app-gesture">手势: <span></span></div>
+  </div>
+  <div id="shape-panel"></div>
+  <div id="panel-hint">Tab: 切换面板 | W/S: 切分类 | Q/E: 切形态</div>
+  <div id="fps"></div>
+  <div id="gesture-hints">
+    <div class="hint-item"><div class="hint-dot" style="background:#00ff88"></div><span>捏合</span></div>
+    <div class="hint-item"><div class="hint-dot" style="background:#4488ff"></div><span>食指</span></div>
+    <div class="hint-item"><div class="hint-dot" style="background:#ffcc00"></div><span>比耶</span></div>
+    <div class="hint-item"><div class="hint-dot" style="background:#ff6666"></div><span>握拳</span></div>
+    <div class="hint-item"><div class="hint-dot" style="background:#cc66ff"></div><span>张手</span></div>
+    <div class="hint-item"><div class="hint-dot" style="background:#66ffcc"></div><span>滚轮</span></div>
+    <div class="hint-item"><div class="hint-dot" style="background:#ff9944"></div><span>拖拽</span></div>
+  </div>
+  <div id="status">等待手势...</div>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

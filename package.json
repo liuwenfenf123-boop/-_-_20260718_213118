@@ -1,0 +1,25 @@
+{
+  "name": "particle-launcher",
+  "version": "1.0.0",
+  "description": "粒子手势应用启动器 - Particle Gesture App Launcher",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.14",
+    "gsap": "^3.12.5",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/three": "^0.170.0",
+    "electron": "^33.4.11",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
