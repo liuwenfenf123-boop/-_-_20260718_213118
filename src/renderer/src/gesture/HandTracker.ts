@@ -303,6 +303,7 @@ export class HandTracker {
   private cursorCallback: ((screenX: number, screenY: number) => void) | null = null
 
   constructor(video: HTMLVideoElement, options: HandTrackerOptions = {}) {
+    console.log('[HandTracker] constructor called')
     this.video = video
     this.mirrorPointerX = options.mirrorPointerX ?? true
     this.swapHandednessLabels = options.swapHandednessLabels ?? false
@@ -312,6 +313,7 @@ export class HandTracker {
   // ===== 初始化 =====
 
   private async init(): Promise<void> {
+    console.log('[HandTracker] init started')
     if (this.destroyed) return
 
     try {
@@ -393,7 +395,10 @@ export class HandTracker {
   // ===== 回调注册 =====
 
   onGesture(callback: GestureCallback): void { this.gestureCallback = callback }
-  onPointerUpdate(callback: PointerCallback): void { this.pointerCallback = callback }
+  onPointerUpdate(callback: PointerCallback): void { 
+    console.log('[HandTracker] onPointerUpdate registered')
+    this.pointerCallback = callback 
+  }
   onPointerLost(callback: PointerLostCallback): void { this.pointerLostCallback = callback }
   onClick(callback: ClickCallback): void { this.clickCallback = callback }
   onComboGesture(callback: ComboCallback): void { this.comboCallback = callback }
@@ -746,6 +751,7 @@ export class HandTracker {
       timestamp
     }
 
+    console.log('[HandTracker] calling pointerCallback')
     this.pointerCallback?.(update)
 
     // 旧版兼容

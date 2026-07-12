@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { ParticleSystem, ParticleShape, SHAPE_CATEGORIES, SHAPE_LABELS } from './ParticleSystem'
 import { OrnamentSystem } from './OrnamentSystem'
-import { HandTracker } from '../gesture/HandTracker'
+import { HandTracker, PointerUpdate, HandData, ComboGesture } from '../gesture/HandTracker'
 import { AudioManager } from './AudioManager'
 import { appConfig } from '../config/appConfig'
 
@@ -184,60 +184,40 @@ class App {
         this.handleGesture(gesture, handX, handY)
       })
 
-      // ===== 手势光标控制 =====
-      // 比耶（peace）手势移动 → 控制屏幕光标
-      this.handTracker.onCursorMove((screenX, screenY) => {
+      // ===== 手势光标控制（重构后使用 onPointerUpdate）=====
+      this.handTracker.onPointerUpdate((pointer: PointerUpdate) => {
+        console.log('[PointerUpdate]', pointer.screenX, pointer.screenY, pointer.stableGesture)
         this.handCursorActive = true
-        this.handCursorX = screenX
-        this.handCursorY = screenY
+        this.handCursorX = pointer.screenX
+        this.handCursorY = pointer.screenY
 
-        // 如果有选中的星球，光标锁定在星球上（屏幕中心附近）
-        const selected = this.ornamentSystem.getSelectedOrnament()
-        if (selected) {
-          // 把选中星球的世界坐标投影到屏幕坐标
-          const worldPos = selected.mesh.position.clone()
-          worldPos.project(this.camera)
-          const lockedX = (worldPos.x + 1) / 2 * window.innerWidth
-          const lockedY = -(worldPos.y - 1) / 2 * window.innerHeight
-
-          if (this.cursorRing) {
-            this.cursorRing.style.left = lockedX + 'px'
-            this.cursorRing.style.top = lockedY + 'px'
-            this.cursorRing.style.opacity = '1'
-          }
-          if (this.cursorDot) {
-            this.cursorDot.style.left = lockedX + 'px'
-            this.cursorDot.style.top = lockedY + 'px'
-            this.cursorDot.style.opacity = '1'
-          }
-
-          // NDC 也锁定
-          this.mouseNDC.x = worldPos.x
-          this.mouseNDC.y = worldPos.y
-          this.mouseActive = true
-          return  // 不更新拖尾，光标完全固定
-        }
-
-        // 没有选中 → 正常跟随比耶手势
+        // 更新光标位置
         if (this.cursorRing) {
-          this.cursorRing.style.left = screenX + 'px'
-          this.cursorRing.style.top = screenY + 'px'
+          this.cursorRing.style.left = pointer.screenX + 'px'
+          this.cursorRing.style.top = pointer.screenY + 'px'
           this.cursorRing.style.opacity = '1'
         }
         if (this.cursorDot) {
-          this.cursorDot.style.left = screenX + 'px'
-          this.cursorDot.style.top = screenY + 'px'
+          this.cursorDot.style.left = pointer.screenX + 'px'
+          this.cursorDot.style.top = pointer.screenY + 'px'
           this.cursorDot.style.opacity = '1'
         }
 
         // 更新 NDC 坐标
-        this.mouseNDC.x = (screenX / window.innerWidth) * 2 - 1
-        this.mouseNDC.y = -(screenY / window.innerHeight) * 2 + 1
+        this.mouseNDC.x = pointer.normalizedX * 2 - 1
+        this.mouseNDC.y = -(pointer.normalizedY * 2 - 1)
         this.mouseActive = true
 
         // 光标拖尾
-        this.cursorTrail.push({ x: screenX, y: screenY, life: 1 })
+        this.cursorTrail.push({ x: pointer.screenX, y: pointer.screenY, life: 1 })
         if (this.cursorTrail.length > 18) this.cursorTrail.shift()
+      })
+
+      // ===== 手势丢失处理 =====
+      this.handTracker.onPointerLost(() => {
+        this.handCursorActive = false
+        if (this.cursorRing) this.cursorRing.style.opacity = '0'
+        if (this.cursorDot) this.cursorDot.style.opacity = '0'
       })
 
       // 拇指捏合 / peace 保持静止 → 选中星球（不直接打开）
