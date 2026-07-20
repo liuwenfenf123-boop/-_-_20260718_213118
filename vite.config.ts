@@ -8,6 +8,10 @@ export default defineConfig({
     outDir: resolve(__dirname, 'dist'),
   },
   server: {
-    port: 5173,
+    port: 5174,
+  },
+  cacheDir: '/tmp/vite-cache',
+  optimizeDeps: {
+    exclude: ['three', 'gsap', '@mediapipe/tasks-vision']
   }
 })

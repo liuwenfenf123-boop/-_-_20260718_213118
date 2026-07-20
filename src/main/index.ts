@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, globalShortcut, screen } = require('
 import { join } from 'path'
 import { stat } from 'fs/promises'   
 
-let mainWindow: BrowserWindow | null = null
+let mainWindow: InstanceType<typeof BrowserWindow> | null = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -35,7 +35,7 @@ function createWindow() {
 
 // 启动应用程序
 function registerIpcHandlers() {
-ipcMain.handle('launch-app', async (_event, appPath: string) => {
+ipcMain.handle('launch-app', async (_event: any, appPath: string) => {
   try {
     await shell.openPath(appPath)
     // 启动应用后自动置顶主窗口，确保手势控制继续可用
@@ -51,7 +51,7 @@ ipcMain.handle('launch-app', async (_event, appPath: string) => {
 })
 
 // 获取应用文件大小
-ipcMain.handle('get-app-size', async (_event, appPath: string) => {
+ipcMain.handle('get-app-size', async (_event: any, appPath: string) => {
   try {
     // 获取 .app 包的大小
     const stats = await stat(appPath)
@@ -100,7 +100,7 @@ ipcMain.handle('get-running-apps', async () => {
 // 使用 Electron 的屏幕 API + shell 命令实现系统控制
 
 // 移动系统鼠标（用 AppleScript 实现精确控制）
-ipcMain.handle('mouse-move', async (_event, x: number, y: number) => {
+ipcMain.handle('mouse-move', async (_event: any, x: number, y: number) => {
   try {
     const { exec } = require('child_process')
     // 获取当前显示器尺寸，确保坐标在范围内
@@ -117,7 +117,7 @@ ipcMain.handle('mouse-move', async (_event, x: number, y: number) => {
 })
 
 // 系统级点击（用 AppleScript + cliclick）
-ipcMain.handle('mouse-click', async (_event, button: 'left' | 'right' = 'left', double: boolean = false) => {
+ipcMain.handle('mouse-click', async (_event: any, button: 'left' | 'right' = 'left', double: boolean = false) => {
   try {
     const { exec } = require('child_process')
     // 优先用 cliclick（Mac 上最好用的命令行鼠标工具）
@@ -148,7 +148,7 @@ ipcMain.handle('mouse-click', async (_event, button: 'left' | 'right' = 'left', 
 })
 
 // 鼠标按下
-ipcMain.handle('mouse-down', async (_event, _button: 'left' | 'right' = 'left') => {
+ipcMain.handle('mouse-down', async (_event: any, _button: 'left' | 'right' = 'left') => {
   try {
     const { exec } = require('child_process')
     return new Promise((resolve) => {
@@ -162,7 +162,7 @@ ipcMain.handle('mouse-down', async (_event, _button: 'left' | 'right' = 'left') 
 })
 
 // 鼠标抬起
-ipcMain.handle('mouse-up', async (_event, _button: 'left' | 'right' = 'left') => {
+ipcMain.handle('mouse-up', async (_event: any, _button: 'left' | 'right' = 'left') => {
   try {
     const { exec } = require('child_process')
     return new Promise((resolve) => {
@@ -176,7 +176,7 @@ ipcMain.handle('mouse-up', async (_event, _button: 'left' | 'right' = 'left') =>
 })
 
 // 滚轮
-ipcMain.handle('mouse-scroll', async (_event, amount: number) => {
+ipcMain.handle('mouse-scroll', async (_event: any, amount: number) => {
   try {
     const { exec } = require('child_process')
     // cliclick 的 scroll 命令：正值向下，负值向上
@@ -192,7 +192,7 @@ ipcMain.handle('mouse-scroll', async (_event, amount: number) => {
 })
 
 // 键盘快捷键（用于切窗口等）
-ipcMain.handle('key-tap', async (_event, key: string, modifier: string | null) => {
+ipcMain.handle('key-tap', async (_event: any, key: string, modifier: string | null) => {
   try {
     const { exec } = require('child_process')
     // 用 cliclick 的 key 命令

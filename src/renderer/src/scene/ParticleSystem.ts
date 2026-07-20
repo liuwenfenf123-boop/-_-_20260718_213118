@@ -441,13 +441,13 @@ export class ParticleSystem {
     for (let i = 0; i < count; i++) {
       const i3 = i * 3
 
-      // 堆叠位置
+      // 堆叠位置（紧凑的小球形，跟展开形态有明显差异）
       const heapAngle = Math.random() * Math.PI * 2
       const heapPhi = Math.acos(2 * Math.random() - 1)
-      const heapRadius = 2.5 + Math.random() * 3
+      const heapRadius = 0.3 * Math.cbrt(Math.random())  // 立方根分布让粒子在球内均匀
       const heapPos = new THREE.Vector3(
         Math.sin(heapPhi) * Math.cos(heapAngle) * heapRadius,
-        Math.sin(heapPhi) * Math.sin(heapAngle) * heapRadius - 1.5,
+        Math.sin(heapPhi) * Math.sin(heapAngle) * heapRadius + 0.5,
         Math.cos(heapPhi) * heapRadius
       )
 
@@ -1407,6 +1407,8 @@ export class ParticleSystem {
         }
       })
     }
+    // 标记 attribute 需要更新到 GPU
+    this.geometry.attributes.aMixFactor.needsUpdate = true
   }
 
   morphToHeap(duration: number) {
@@ -1422,6 +1424,8 @@ export class ParticleSystem {
         }
       })
     }
+    // 标记 attribute 需要更新到 GPU
+    this.geometry.attributes.aMixFactor.needsUpdate = true
   }
 
   getMixAverage(): number {

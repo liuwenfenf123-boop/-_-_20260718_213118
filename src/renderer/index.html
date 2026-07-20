@@ -206,6 +206,186 @@
       color: rgba(255,255,255,0.2); font-size: 10px;
       z-index: 10;
     }
+
+    /* ========== Constellation Panel ========== */
+    #constellation-panel {
+      position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+      z-index: 20; max-height: 80vh; overflow-y: auto;
+      background: rgba(0,5,17,0.85);
+      border: 1px solid rgba(136,204,255,0.15);
+      border-radius: 12px; padding: 14px;
+      backdrop-filter: blur(12px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+      width: 180px;
+    }
+    #constellation-panel::-webkit-scrollbar { width: 4px; }
+    #constellation-panel::-webkit-scrollbar-track { background: transparent; }
+    #constellation-panel::-webkit-scrollbar-thumb { background: rgba(136,204,255,0.2); border-radius: 2px; }
+
+    .constellation-title {
+      color: rgba(136,204,255,0.6); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      margin-bottom: 6px; padding-bottom: 4px;
+      border-bottom: 1px solid rgba(136,204,255,0.1);
+    }
+
+    .constellation-list {
+      display: flex; flex-direction: column; gap: 4px;
+    }
+
+    .constellation-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 6px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.5); font-size: 11px;
+      cursor: pointer; transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .constellation-btn:hover {
+      background: rgba(136,204,255,0.1);
+      border-color: rgba(136,204,255,0.3);
+      color: rgba(255,255,255,0.8);
+    }
+    .constellation-btn.active {
+      background: rgba(136,204,255,0.15);
+      border-color: rgba(136,204,255,0.5);
+      color: #88ccff;
+      box-shadow: 0 0 8px rgba(136,204,255,0.2);
+    }
+    .constellation-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .constellation-count {
+      margin-left: auto; font-size: 9px;
+      color: rgba(255,255,255,0.3);
+    }
+  
+    /* ========== 手势调试面板 ========== */
+    #gesture-debug-panel {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 360px; z-index: 200;
+      background: rgba(0,5,17,0.95);
+      border-left: 1px solid rgba(102,255,204,0.2);
+      backdrop-filter: blur(16px);
+      display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      font-size: 12px; color: rgba(255,255,255,0.8);
+    }
+    #gesture-debug-panel.visible {
+      transform: translateX(0);
+    }
+
+    .debug-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(102,255,204,0.1);
+      background: rgba(102,255,204,0.05);
+    }
+    .debug-title { font-size: 14px; font-weight: 600; color: #66ffcc; }
+    .debug-hint { font-size: 10px; color: rgba(255,255,255,0.3); }
+
+    .debug-content {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+    }
+    .debug-content::-webkit-scrollbar { width: 4px; }
+    .debug-content::-webkit-scrollbar-track { background: transparent; }
+    .debug-content::-webkit-scrollbar-thumb { background: rgba(102,255,204,0.15); border-radius: 2px; }
+
+    .debug-section {
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .debug-section-title {
+      font-size: 11px; color: rgba(102,255,204,0.6);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .debug-log-count {
+      font-size: 10px; color: rgba(255,255,255,0.3);
+      text-transform: none; letter-spacing: 0;
+    }
+
+    .debug-state-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .debug-state-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 8px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 4px;
+    }
+    .debug-label { color: rgba(255,255,255,0.4); font-size: 10px; }
+    .debug-value { color: #66ffcc; font-size: 11px; font-weight: 500; }
+
+    .debug-detail-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .debug-detail-col {
+      background: rgba(255,255,255,0.02);
+      border-radius: 6px; padding: 8px;
+    }
+    .debug-detail-header {
+      font-size: 11px; font-weight: 600; color: #66ffcc;
+      margin-bottom: 6px; padding-bottom: 4px;
+      border-bottom: 1px solid rgba(102,255,204,0.1);
+    }
+    .debug-detail-row {
+      display: flex; justify-content: space-between;
+      padding: 3px 0; font-size: 10px;
+    }
+    .debug-detail-row span:first-child { color: rgba(255,255,255,0.35); }
+    .debug-detail-row span:last-child { color: rgba(255,255,255,0.7); }
+
+    .debug-log-list {
+      max-height: 200px; overflow-y: auto;
+      font-family: 'SF Mono', monospace; font-size: 10px;
+    }
+    .debug-log-list::-webkit-scrollbar { width: 3px; }
+    .debug-log-list::-webkit-scrollbar-track { background: transparent; }
+    .debug-log-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .debug-log-entry {
+      padding: 3px 6px; border-radius: 3px;
+      margin-bottom: 2px; display: flex; gap: 8px;
+    }
+    .debug-log-gesture { background: rgba(102,255,204,0.05); }
+    .debug-log-action { background: rgba(255,180,80,0.05); }
+    .debug-log-system { background: rgba(255,255,255,0.03); }
+    .log-time { color: rgba(255,255,255,0.25); white-space: nowrap; }
+    .log-msg { color: rgba(255,255,255,0.65); }
+
+    .debug-footer {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px;
+      border-top: 1px solid rgba(102,255,204,0.1);
+      background: rgba(0,0,0,0.3);
+    }
+    .debug-btn {
+      padding: 5px 10px; border-radius: 4px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.6);
+      font-size: 10px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .debug-btn:hover {
+      background: rgba(102,255,204,0.1);
+      border-color: rgba(102,255,204,0.3);
+      color: #66ffcc;
+    }
+    .debug-recording {
+      margin-left: auto; font-size: 10px;
+      color: #66ffcc;
+    }
+    .debug-recording.paused { color: rgba(255,255,255,0.3); }
+
   </style>
 </head>
 <body>
@@ -220,7 +400,8 @@
     <div class="app-gesture">手势: <span></span></div>
   </div>
   <div id="shape-panel"></div>
-  <div id="panel-hint">Tab: 切换面板 | W/S: 切分类 | Q/E: 切形态</div>
+  <div id="constellation-panel"></div>
+  <div id="panel-hint">左键拖动: 旋转视角(360°翻转) | 右键拖动: 旋转视角 | 左键拖星球: 移动星座 | 滚轮: 缩放 | Tab: 形态 | C: 星座 | V: 连线 | W/S: 切分类 | Q/E: 切形态</div>
   <div id="fps"></div>
   <div id="gesture-hints">
     <div class="hint-item"><div class="hint-dot" style="background:#00ff88"></div><span>捏合</span></div>
@@ -232,6 +413,58 @@
     <div class="hint-item"><div class="hint-dot" style="background:#ff9944"></div><span>拖拽</span></div>
   </div>
   <div id="status">等待手势...</div>
+  <!-- ==== 手势调试面板 ==== -->
+  <div id="gesture-debug-panel">
+    <div class="debug-header">
+      <span class="debug-title">🔍 手势调试面板</span>
+      <span class="debug-hint">按 ` 关闭</span>
+    </div>
+    <div class="debug-content">
+      <div class="debug-section">
+        <div class="debug-section-title">📡 实时状态</div>
+        <div class="debug-state-grid">
+          <div class="debug-state-item"><span class="debug-label">检测模式</span><span class="debug-value" id="dbg-mode">等待中...</span></div>
+          <div class="debug-state-item"><span class="debug-label">左手</span><span class="debug-value" id="dbg-left">——</span></div>
+          <div class="debug-state-item"><span class="debug-label">右手</span><span class="debug-value" id="dbg-right">——</span></div>
+          <div class="debug-state-item"><span class="debug-label">组合手势</span><span class="debug-value" id="dbg-combo">——</span></div>
+          <div class="debug-state-item"><span class="debug-label">光标状态</span><span class="debug-value" id="dbg-armed">——</span></div>
+          <div class="debug-state-item"><span class="debug-label">选中状态</span><span class="debug-value" id="dbg-selected">——</span></div>
+          <div class="debug-state-item"><span class="debug-label">锁定视角</span><span class="debug-value" id="dbg-lock">——</span></div>
+          <div class="debug-state-item"><span class="debug-label">推理速度</span><span class="debug-value" id="dbg-inference">——</span></div>
+        </div>
+      </div>
+      <div class="debug-section">
+        <div class="debug-section-title">📊 手势详情</div>
+        <div class="debug-detail-grid">
+          <div class="debug-detail-col">
+            <div class="debug-detail-header">左手</div>
+            <div class="debug-detail-row"><span>原始手势</span><span id="dbg-left-raw">——</span></div>
+            <div class="debug-detail-row"><span>稳定手势</span><span id="dbg-left-stable">——</span></div>
+            <div class="debug-detail-row"><span>手掌朝向</span><span id="dbg-left-facing">——</span></div>
+            <div class="debug-detail-row"><span>捏合比例</span><span id="dbg-left-pinch">——</span></div>
+          </div>
+          <div class="debug-detail-col">
+            <div class="debug-detail-header">右手</div>
+            <div class="debug-detail-row"><span>原始手势</span><span id="dbg-right-raw">——</span></div>
+            <div class="debug-detail-row"><span>稳定手势</span><span id="dbg-right-stable">——</span></div>
+            <div class="debug-detail-row"><span>手掌朝向</span><span id="dbg-right-facing">——</span></div>
+            <div class="debug-detail-row"><span>捏合比例</span><span id="dbg-right-pinch">——</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="debug-section">
+        <div class="debug-section-title">📜 操作记录 <span class="debug-log-count" id="dbg-log-count">0条</span></div>
+        <div class="debug-log-list"></div>
+      </div>
+    </div>
+    <div class="debug-footer">
+      <button class="debug-btn" id="dbg-btn-record">⏸ 停止记录</button>
+      <button class="debug-btn" id="dbg-btn-clear">🗑 清除</button>
+      <button class="debug-btn" id="dbg-btn-export">📥 导出</button>
+      <span class="debug-recording" id="dbg-recording">● 记录中</span>
+    </div>
+  </div>
   <script type="module" src="./src/main.ts"></script>
+
 </body>
 </html>

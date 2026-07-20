@@ -8,7 +8,7 @@ export interface AppEntry {
   fileSize?: number  // 文件大小（字节），用于调整星球大小
 }
 
-export const appConfig: { particleTheme: string; apps: AppEntry[] } = {
+export const appConfig = {
   particleTheme: 'christmas_tree',
 
   apps: [

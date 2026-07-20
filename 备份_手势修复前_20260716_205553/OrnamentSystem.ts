@@ -1371,14 +1371,14 @@ gsap.to(ornament.labelSprite.material, { opacity: 1, duration: 0.3 })
 
     const statusEl = document.getElementById('status')
     if (statusEl) {
-      statusEl.textContent = `悬停: ${ornament.app.name} — 捏合/比耶选中`
+      statusEl.textContent = `悬停: ${ornament.app.name} — 比耶停留选中`
       statusEl.style.color = ornament.app.color
     }
 
     const label = document.getElementById('ornament-label')
     if (label) {
       label.querySelector('.app-name')!.textContent = ornament.app.name
-      label.querySelector('.app-gesture span')!.textContent = '捏合/比耶选中'
+      label.querySelector('.app-gesture span')!.textContent = '比耶停留选中'
       label.classList.add('visible')
     }
   }
@@ -1443,7 +1443,7 @@ gsap.to(ornament.labelSprite.material, { opacity: 0, duration: 0.3 })
     const label = document.getElementById('ornament-label')
     if (label) {
       label.querySelector('.app-name')!.textContent = ornament.app.name
-      label.querySelector('.app-gesture span')!.textContent = '张手启动'
+      label.querySelector('.app-gesture span')!.textContent = '张开手掌启动'
       label.classList.add('visible')
     }
   }
@@ -2014,7 +2014,7 @@ gsap.to(ornament.labelSprite.material, { opacity: 0, duration: 0.3 })
     
     // 恢复visible状态
     if (this.constellationLines) {
-      (this.constellationLines as THREE.LineSegments).visible = wasVisible && this.constellationLinesVisible
+      this.constellationLines.visible = wasVisible && this.constellationLinesVisible
     }
   }
 
@@ -2151,7 +2151,7 @@ gsap.to(ornament.labelSprite.material, { opacity: 0, duration: 0.3 })
       if (this.ornaments.length >= 36) {
         this.createConstellationLines()
         if (this.constellationLines) {
-          (this.constellationLines as THREE.LineSegments).visible = this.constellationLinesVisible
+          this.constellationLines.visible = this.constellationLinesVisible
         }
       }
     }
