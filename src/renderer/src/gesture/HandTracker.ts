@@ -271,7 +271,8 @@ export class HandTracker {
   private leftGestureBuffer: Gesture[] = []
   private rightGestureBuffer: Gesture[] = []
   private readonly BUFFER_SIZE = 5          // 缓冲区长度
-  private readonly VOTE_THRESHOLD = 4        // 5帧中至少4帧相同才确认为稳定手势
+  private readonly VOTE_THRESHOLD = 3        // 5帧中至少3帧相同就确认，手势响应更跟手
+  private readonly PINCH_RATIO_THRESHOLD = 0.5
 
   // 稳定手势状态
   private leftStableGesture: Gesture = 'unknown'
@@ -282,7 +283,7 @@ export class HandTracker {
   // 点击防抖：手势必须持续一定时长才触发点击，并加冷却防止重复
   private leftClickArmedSince = 0            // 左手进入"点击手势"的时间戳（0 表示未进入）
   private rightClickArmedSince = 0            // 右手进入"点击手势"的时间戳
-  private readonly CLICK_HOLD_MS = 60         // 持续 60ms 才算一次有效点击（原 120，加速响应）
+  private readonly CLICK_HOLD_MS = 40         // 持续 40ms 才算一次有效点击，让捏合选中更灵敏
   private readonly CLICK_COOLDOWN_MS = 200    // 两次点击之间至少间隔 200ms（原 400，加速连击）
   private lastClickFiredTime = 0
 
@@ -317,7 +318,7 @@ export class HandTracker {
   private prevLeftStableGesture: Gesture = 'unknown'
   // 方案A：左手操作手势冷却（防止重复触发）
   private lastLeftGestureTime = 0
-  private readonly LEFT_GESTURE_COOLDOWN_MS = 400  // 原 800，缩短让左手操作更跟手
+  private readonly LEFT_GESTURE_COOLDOWN_MS = 250  // 左手操作冷却，太长会让捏合像没反应
 
   // 旧版兼容
   private cursorCallback: ((screenX: number, screenY: number) => void) | null = null
@@ -539,13 +540,19 @@ export class HandTracker {
       })
     }
 
-    // 处理两只手被解析为同一侧的情况
+    // 处理两只手被解析为同一侧的情况：按手腕位置稳定分配，避免置信度抖动导致左右手来回交换。
     if (hands.length === 2 && hands[0].side === hands[1].side) {
-      // 保留置信度高的，另一手翻转
-      if (hands[0].handednessScore >= hands[1].handednessScore) {
-        hands[1].side = hands[1].side === 'Left' ? 'Right' : 'Left'
+      const firstX = hands[0].landmarks[0]?.x ?? 0.5
+      const secondX = hands[1].landmarks[0]?.x ?? 0.5
+      const leftIndex = firstX <= secondX ? 0 : 1
+      const rightIndex = leftIndex === 0 ? 1 : 0
+
+      if (this.swapHandednessLabels) {
+        hands[leftIndex].side = 'Left'
+        hands[rightIndex].side = 'Right'
       } else {
-        hands[0].side = hands[0].side === 'Left' ? 'Right' : 'Left'
+        hands[leftIndex].side = 'Right'
+        hands[rightIndex].side = 'Left'
       }
     }
 
@@ -576,20 +583,21 @@ export class HandTracker {
 
     const metrics = getGestureMetrics(landmarks, worldLandmarks)
 
-    // 方案A：先判断 open_palm（优先级最高）
-    // 3 根以上手指伸直就算 open_palm（避免被 point 提前拦截）
     const extendedCount = [indexExtended, middleExtended, ringExtended, pinkyExtended].filter(Boolean).length
+
+    // 捏合优先级最高：拇指和食指贴近时，其他手指张开也算捏合。
+    if (metrics.pinchRatio < this.PINCH_RATIO_THRESHOLD) {
+      DebugLogger.logPerFrame('HandTracker:手势分类', `手指角度: 食指=${indexAngle.toFixed(1)} 中指=${middleAngle.toFixed(1)} 无名指=${ringAngle.toFixed(1)} 小指=${pinkyAngle.toFixed(1)} 伸直数=${extendedCount} 捏合比=${metrics.pinchRatio.toFixed(2)} → pinch`)
+      return 'pinch'
+    }
+
+    // 3 根以上手指伸直算 open_palm。
     if (extendedCount >= 3) {
       // 方案A：双手分工法 - 五指张开统一识别为 open_palm
       // 不再根据 palmFacing 拆分成 back_palm/palm_down/palm_up
       // 因为右手张开手掌就是"指向"手势，朝向不影响功能
       DebugLogger.logPerFrame('HandTracker:手势分类', `手指角度: 食指=${indexAngle.toFixed(1)} 中指=${middleAngle.toFixed(1)} 无名指=${ringAngle.toFixed(1)} 小指=${pinkyAngle.toFixed(1)} 伸直数=${extendedCount} 捏合比=${metrics.pinchRatio.toFixed(2)} → open_palm`)
       return 'open_palm'
-    }
-
-    if (metrics.pinchRatio < 0.34 && !middleExtended && !ringExtended && !pinkyExtended) {
-      DebugLogger.logPerFrame('HandTracker:手势分类', `手指角度: 食指=${indexAngle.toFixed(1)} 中指=${middleAngle.toFixed(1)} 无名指=${ringAngle.toFixed(1)} 小指=${pinkyAngle.toFixed(1)} 伸直数=${extendedCount} 捏合比=${metrics.pinchRatio.toFixed(2)} → pinch`)
-      return 'pinch'
     }
 
     if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended && metrics.averageTipToWristRatio < 1.05) {
@@ -622,7 +630,10 @@ export class HandTracker {
 
     const stableGesture = this.updateStableGesture(hand.side, gesture, timestamp)
 
-    this.updatePointer(hand, gesture, stableGesture, timestamp)
+    // 单手模式也坚持双手分工：右手才是光标，左手只做操作。
+    if (hand.side === 'Right') {
+      this.updatePointer(hand, gesture, stableGesture, timestamp)
+    }
 
     DebugLogger.gestureStateChange('HandTracker:单手', `手=${hand.side} 原始手势=${gesture} 稳定手势=${stableGesture}`)
 
@@ -725,8 +736,9 @@ export class HandTracker {
     // 方案A：右手只负责"指向"（更新光标位置）
     this.updatePointer(right, rightGesture, rightStable, timestamp)
 
-    // 处理缩放
-    this.updatePinchZoom(left, leftStable)
+    // 手势缩放关闭：握拳/松拳过程容易被短暂识别成捏合，导致相机突然冲进星球中心。
+    this.dualPinchZoomDelta = 0
+    this.previousLeftPinchDistance = null
 
     // 组合手势检测
     const combo = this.detectComboGesture(leftStable, rightStable, timestamp)
@@ -738,7 +750,9 @@ export class HandTracker {
     // 方案A：双手分工法 - 右手不再触发 clickCallback
     // 左手负责操作手势：pinch → 选中, fist → 取消, open_palm → 启动
     // 通过 leftHandGestureCallback 通知 App.ts
-    if (!combo && leftStable !== 'unknown' && leftStable !== this.prevLeftStableGesture) {
+    const leftOperationChanged = leftStable !== this.prevLeftStableGesture
+    const leftPinchHeld = leftStable === 'pinch'
+    if (!combo && leftStable !== 'unknown' && (leftOperationChanged || leftPinchHeld)) {
       // 左手稳定手势变化 + 冷却检查
       if (timestamp - this.lastLeftGestureTime >= this.LEFT_GESTURE_COOLDOWN_MS) {
         // 只在左手做出明确操作手势时触发
@@ -764,10 +778,7 @@ export class HandTracker {
       this.restCallback?.(false)
     }
 
-    // ===== 手势回调（右手，用于光标状态提示）=====
-    if (this.gestureCallback && rightStable !== 'unknown') {
-      this.gestureCallback(rightStable, right.landmarks[0].x, right.landmarks[0].y)
-    }
+    // 双手模式下右手只负责指向，操作只能走 leftHandGestureCallback 或 comboCallback。
 
     // 构建 HandData
     const leftMetrics = getGestureMetrics(left.landmarks, left.worldLandmarks)
@@ -781,7 +792,7 @@ export class HandTracker {
       stableGesture: leftStable,
       x: left.landmarks[0].x,
       y: left.landmarks[0].y,
-      isPinching: leftMetrics.pinchRatio < 0.34,
+      isPinching: leftMetrics.pinchRatio < this.PINCH_RATIO_THRESHOLD,
       pinchRatio: leftMetrics.pinchRatio,
       smoothX: this.leftHandData?.smoothX ?? 0.5,
       smoothY: this.leftHandData?.smoothY ?? 0.5,
@@ -797,7 +808,7 @@ export class HandTracker {
       stableGesture: rightStable,
       x: right.landmarks[0].x,
       y: right.landmarks[0].y,
-      isPinching: rightMetrics.pinchRatio < 0.34,
+      isPinching: rightMetrics.pinchRatio < this.PINCH_RATIO_THRESHOLD,
       pinchRatio: rightMetrics.pinchRatio,
       smoothX: this.smoothX,
       smoothY: this.smoothY,

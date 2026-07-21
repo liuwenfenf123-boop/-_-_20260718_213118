@@ -9,6 +9,7 @@ export default defineConfig({
   },
   server: {
     port: 5174,
+    allowedHosts: ['.monkeycode-ai.online'],
   },
   cacheDir: '/tmp/vite-cache',
   optimizeDeps: {

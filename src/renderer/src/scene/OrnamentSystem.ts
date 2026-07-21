@@ -1421,7 +1421,8 @@ gsap.to(ornament.labelSprite.material, { opacity: 0, duration: 0.3 })
     ornament.selected = true
     this.audio.playHover()
 
-    gsap.to(ornament.mesh.position, { x: 0, y: 0.5, z: 0, duration: 0.6, ease: 'power3.out' })
+    gsap.killTweensOf(ornament.mesh.position)
+    ornament.positionAnimating = false
     gsap.to(ornament.mesh.scale, { x: 1.9, y: 1.9, z: 1.9, duration: 0.4, ease: 'back.out(2)' })
 
     const bubbleMat = ornament.bubbleMesh.material as THREE.MeshPhysicalMaterial

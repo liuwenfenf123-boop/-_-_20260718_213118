@@ -85,6 +85,8 @@ class App {
   private handCursorX = 0
   private handCursorY = 0
   private handLastClickTime = 0
+  private lastRightPointerArmedAt = 0
+  private handHoveredElement: HTMLElement | null = null
   private prevHandMode: 'none' | 'single' | 'dual' = 'none'  // 追踪模式变化，用于日志
 
   // 形态切换
@@ -231,6 +233,9 @@ class App {
         // 只在 armed 状态时更新光标位置和射线检测坐标
         // 非 armed 状态（捏合/握拳/张手等）：光标停在原地，不触发 hover
         if (pointer.armed) {
+          if (pointer.side === 'Right') {
+            this.lastRightPointerArmedAt = performance.now()
+          }
           // 更新光标位置（全亮）
           if (this.cursorRing) {
             this.cursorRing.style.left = pointer.screenX + 'px'
@@ -247,6 +252,7 @@ class App {
           this.mouseNDC.x = pointer.normalizedX * 2 - 1
           this.mouseNDC.y = -(pointer.normalizedY * 2 - 1)
           this.mouseActive = true
+          this.updateHandUiHover(pointer.screenX, pointer.screenY)
 
           // 光标拖尾
           this.cursorTrail.push({ x: pointer.screenX, y: pointer.screenY, life: 1 })
@@ -266,6 +272,7 @@ class App {
         // 关键修复：手势丢失时立即清 mouseActive，防止 animate() 中
         // 用过期的 NDC 坐标继续做 hover 检测（会导致 hover 状态错乱）
         this.mouseActive = false
+        this.clearHandUiHover()
         if (this.cursorRing) this.cursorRing.style.opacity = '0'
         if (this.cursorDot) this.cursorDot.style.opacity = '0'
       })
@@ -282,11 +289,6 @@ class App {
         this.handleLeftHandOperation(stableGesture)
         DebugLogger.important('App:左手操作', `左手手势=${stableGesture}`)
         this.debugPanel.addLog('action', `左手操作: ${GESTURE_NAMES_CALLBACK[stableGesture] || stableGesture}`)
-      })
-
-      // ===== 手势事件 → 控制星球（选中由 onClick 处理）=====
-      this.handTracker.onGesture((gesture, _handX, _handY) => {
-        this.handleGestureForOrb(gesture)
       })
 
       // ===== 休息模式 =====
@@ -318,21 +320,14 @@ class App {
 
         const statusEl = document.getElementById('status')
         if (combo === 'both_fist') {
-          DebugLogger.important('App:组合手势', '双拳 → 全部取消')
-          this.debugPanel.addLog('action', '双拳 → 全部取消')
-          // 双拳 → 全部取消选中（走统一清理方法，彻底重置所有状态）
-          if (this.clickedCenterTarget || this.ornamentSystem.getClickedOrnament() || this.ornamentSystem.getSelectedOrnament()) {
-            this.deselectAllAndReset()
-          } else {
-            // 没有选中时也确保光标显示
-            if (this.cursorRing) this.cursorRing.style.opacity = '1'
-            if (this.cursorDot) this.cursorDot.style.opacity = '1'
-          }
+          DebugLogger.important('App:组合手势', '双拳 → 已忽略')
+          this.debugPanel.addLog('action', '双拳 → 忽略')
+          if (this.cursorRing) this.cursorRing.style.opacity = '1'
+          if (this.cursorDot) this.cursorDot.style.opacity = '1'
           if (statusEl) {
-            statusEl.textContent = '✊✊ 双拳 → 全部取消'
-            statusEl.style.color = '#ff6666'
+            statusEl.textContent = '双拳已忽略，单左拳取消'
+            statusEl.style.color = 'rgba(255,255,255,0.45)'
           }
-          this.audioManager.playHover()
         } else if (combo === 'both_open_palm') {
           DebugLogger.important('App:组合手势', '双张手 → 启动应用')
           this.debugPanel.addLog('action', '双张手 → 启动应用')
@@ -352,22 +347,18 @@ class App {
             }
           }
         } else if (combo === 'both_peace') {
-          DebugLogger.important('App:组合手势', '双比耶 → 切换面板')
-          this.debugPanel.addLog('action', '双比耶 → 切换面板')
-          // 双比耶 → 切换形态面板
-          this.togglePanel()
+          DebugLogger.important('App:组合手势', '双比耶 → 已禁用面板切换')
+          this.debugPanel.addLog('action', '双比耶 → 忽略')
           if (statusEl) {
-            statusEl.textContent = '✌✌ 双比耶 → 面板切换'
-            statusEl.style.color = '#88ccff'
+            statusEl.textContent = '双比耶面板切换已关闭'
+            statusEl.style.color = 'rgba(255,255,255,0.45)'
           }
         } else if (combo === 'both_pinch') {
-          DebugLogger.important('App:组合手势', '双捏合 → 星座面板')
-          this.debugPanel.addLog('action', '双捏合 → 星座面板')
-          // 双捏合 → 切换星座面板
-          this.toggleConstellationPanel()
+          DebugLogger.important('App:组合手势', '双捏合 → 已禁用星座面板切换')
+          this.debugPanel.addLog('action', '双捏合 → 忽略')
           if (statusEl) {
-            statusEl.textContent = '🤏🤏 双捏合 → 星座面板'
-            statusEl.style.color = '#88ccff'
+            statusEl.textContent = '双捏合星座面板切换已关闭'
+            statusEl.style.color = 'rgba(255,255,255,0.45)'
           }
         }
       })
@@ -1154,8 +1145,7 @@ class App {
   }
 
   // ========== 统一选中处理 ==========
-  // 在 clickSelectByRay 成功后调用：设置相机状态、群组相对位置、光标隐藏等
-  // 鼠标点击和手势点击都走这条路，保证行为完全一致（星球都飞到屏幕正中间）
+  // 在 clickSelectByRay 成功后调用：只高亮原位置，不移动相机和星球位置。
   private applyClickSelection(oldGroup: ReturnType<OrnamentSystem['getLastClickedGroup']>) {
     // 切换星球时恢复旧群组的缩放
     if (oldGroup.length > 0) {
@@ -1168,18 +1158,13 @@ class App {
     this.savedCameraYaw = this.cameraYaw
     this.savedCameraPitch = this.cameraPitch
     this.savedCameraDistance = this.cameraDistance
-    // 保存选中群组中每个星球相对于群组中心的位置（用于跟随相机移动）
     const group = this.ornamentSystem.getClickedGroupOrnaments()
     const groupCenter = this.ornamentSystem.getClickedGroupCenter()
     if (!groupCenter) return
     this.clickedGroupRelativePositions.clear()
-    // 星座模式：调整星球间距到合适比例（90%），不太近也不太远
-    const spacingScale = group.length > 1 ? 0.9 : 1.0
-    group.forEach((o, idx) => {
-      const relativePos = o.mesh.position.clone().sub(groupCenter).multiplyScalar(spacingScale)
-      this.clickedGroupRelativePositions.set(idx, relativePos)
-      o.positionAnimating = true
-      // 只放大星球，位置由 animate 中每帧更新（跟随相机移动）
+    group.forEach((o) => {
+      gsap.killTweensOf(o.mesh.position)
+      o.positionAnimating = false
       gsap.to(o.mesh.scale, { x: 1.8, y: 1.8, z: 1.8, duration: 0.35, ease: 'back.out(1.5)' })
     })
     // 光标消失：选中后光标固定在星球上
@@ -1198,7 +1183,7 @@ class App {
       statusEl.style.color = '#00ff88'
     }
     this.audioManager.playGestureConfirm('click')
-    // 设置初始居中目标（animate 会每帧更新，让选中群组跟随相机移到屏幕正中间）
+    // 标记已选中，用于取消和启动判断；位置保持原地。
     this.clickedCenterTarget = groupCenter.clone()
   }
 
@@ -1242,15 +1227,81 @@ class App {
     }
   }
 
+  private getHandInteractiveElementAt(x: number, y: number): HTMLElement | null {
+    const element = document.elementFromPoint(x, y)
+    if (!(element instanceof HTMLElement)) return null
+
+    const target = element.closest<HTMLElement>([
+      'button',
+      'a[href]',
+      'input',
+      'select',
+      'textarea',
+      '[role="button"]',
+      '[data-shape]',
+      '[data-constellation]',
+      '.shape-btn',
+      '.constellation-btn',
+      '.debug-btn'
+    ].join(','))
+
+    if (!target) return null
+    const style = window.getComputedStyle(target)
+    if (style.pointerEvents === 'none' || style.visibility === 'hidden' || style.display === 'none') return null
+
+    return target
+  }
+
+  private updateHandUiHover(x: number, y: number): void {
+    const target = this.getHandInteractiveElementAt(x, y)
+    if (target === this.handHoveredElement) return
+
+    this.handHoveredElement?.classList.remove('hand-hover')
+    this.handHoveredElement = target
+    this.handHoveredElement?.classList.add('hand-hover')
+  }
+
+  private clearHandUiHover(): void {
+    this.handHoveredElement?.classList.remove('hand-hover')
+    this.handHoveredElement = null
+  }
+
+  private clickHandUiTarget(): boolean {
+    const target = this.getHandInteractiveElementAt(this.handCursorX, this.handCursorY)
+    if (!target) return false
+
+    this.updateHandUiHover(this.handCursorX, this.handCursorY)
+    target.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: this.handCursorX, clientY: this.handCursorY }))
+    target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: this.handCursorX, clientY: this.handCursorY }))
+    target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: this.handCursorX, clientY: this.handCursorY }))
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: this.handCursorX, clientY: this.handCursorY }))
+
+    target.classList.add('hand-press')
+    window.setTimeout(() => target.classList.remove('hand-press'), 160)
+    DebugLogger.important('App:手势鼠标', `点击 UI 元素: ${target.textContent?.trim() || target.dataset.shape || target.dataset.constellation || target.tagName}`)
+    return true
+  }
+
   // ===== 手势选中星球（走统一入口，和鼠标点击行为完全一致）=====
-  // 捏合/比耶持续 120ms → 触发点击 → 射线命中星球则选中（飞到屏幕正中间）
-  private handleHandSelect() {
+  // 左手捏合先点击光标下的 UI；没有 UI 时，再用射线选中 3D 星球。
+  private handleHandSelect(): boolean {
     const now = performance.now()
     DebugLogger.important('App:选中流程', `handleHandSelect 被调用 now=${now.toFixed(0)} 距上次点击=${(now - this.handLastClickTime).toFixed(0)}ms 冷却阈值=150ms`)
     if (now - this.handLastClickTime < 150) {
       DebugLogger.logPerFrame('App:选中流程', `冷却中，跳过（剩余${150 - (now - this.handLastClickTime)}ms）`)
-      return  // 原 300，缩短让选中更跟手
+      return false  // 原 300，缩短让选中更跟手
     }
+
+    if (now - this.lastRightPointerArmedAt > 800) {
+      DebugLogger.important('App:选中流程', '右手没有在瞄准，跳过左手捏合选中')
+      const statusEl = document.getElementById('status')
+      if (statusEl) {
+        statusEl.textContent = '右手张开先对准星球，再用左手捏合'
+        statusEl.style.color = 'rgba(255,255,255,0.5)'
+      }
+      return false
+    }
+
     this.handLastClickTime = now
 
     // 光标反馈
@@ -1258,10 +1309,13 @@ class App {
       this.cursorRing.classList.add('burst')
       window.setTimeout(() => this.cursorRing?.classList.remove('burst'), 400)
     }
+    if (this.clickHandUiTarget()) {
+      return true
+    }
     // 锁定观察模式下：手势点击不触发选中/取消，只让手势光标移动
     if (this.lockViewMode) {
       DebugLogger.logPerFrame('App:选中流程', `lockViewMode=true，跳过选中`)
-      return
+      return false
     }
 
     DebugLogger.important('App:选中流程', `射线检测前 mouseNDC=(${this.mouseNDC.x.toFixed(3)},${this.mouseNDC.y.toFixed(3)}) handCursorActive=${this.handCursorActive}`)
@@ -1276,6 +1330,7 @@ class App {
       DebugLogger.important('App:选中流程', `✅ 射线命中星球: ${clickedOrnament?.app.name || '未知'}`)
       // 射线命中星球 → 走统一选中处理（和鼠标点击完全一样）
       this.applyClickSelection(oldGroup)
+      return true
     } else {
       DebugLogger.important('App:选中流程', `❌ 射线未命中星球（之前是否有选中: ${!!this.clickedCenterTarget}）`)
       // 射线没命中
@@ -1290,6 +1345,7 @@ class App {
         }
       }
     }
+    return false
   }
 
   // ===== 方案A：双手分工法 - 左手操作手势处理 =====
@@ -1301,10 +1357,14 @@ class App {
     if (stableGesture === 'pinch') {
       DebugLogger.important('App:左手操作', '左手捏合 → 选中星球')
       this.debugPanel.addLog('action', '左手捏合 → 选中')
+      if (this.clickedCenterTarget || this.ornamentSystem.getClickedOrnament() || this.ornamentSystem.getSelectedOrnament()) {
+        DebugLogger.logPerFrame('App:左手操作', '已有选中，忽略持续捏合')
+        return
+      }
       // 左手捏合 → 选中星球（走统一入口，和右手点击行为一致）
-      this.handleHandSelect()
-        DebugLogger.important('App:点击', '手势点击事件触发')
-      if (statusEl) {
+      const didSelect = this.handleHandSelect()
+      DebugLogger.important('App:点击', '手势点击事件触发')
+      if (statusEl && didSelect) {
         statusEl.textContent = '🤏 左手捏合 → 选中'
         statusEl.style.color = '#66ffcc'
       }
@@ -1425,10 +1485,8 @@ class App {
     const time = this.clock.elapsedTime
 
     // 相机：完全 360° 围绕中心点旋转 + 滚轮缩放（四元数方案，无奇异点）
-    const hasClickedSelection = this.clickedCenterTarget !== null
     // R 键控制相机围绕中心的公转
-    // 选中状态下相机继续公转，选中星座跟随相机移动保持在屏幕正中间
-    if (!this.isRightDragging && !this.isLeftDragging && this.cameraAutoRotateEnabled) {
+    if (!this.clickedCenterTarget && !this.isRightDragging && !this.isLeftDragging && this.cameraAutoRotateEnabled) {
       this.cameraYaw += dt * 0.12  // 自动公转
     }
     // 用四元数组合 yaw 和 pitch，避免球面坐标的极点奇异性
@@ -1441,27 +1499,7 @@ class App {
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(qTotal)
     this.camera.up.copy(up)
 
-    // 选中状态下：每帧把选中群组移到相机正前方，让用户可以任意角度观察
-    if (hasClickedSelection && this.clickedCenterTarget) {
-      // 计算相机正前方的目标位置（根据当前缩放距离，保持合适比例）
-      const cameraDir = new THREE.Vector3()
-      this.camera.getWorldDirection(cameraDir)
-      const viewDistance = this.cameraDistance * 0.45  // 跟随缩放比例，不远不近
-      const targetPos = this.camera.position.clone().add(cameraDir.multiplyScalar(viewDistance))
-      // 更新每个选中星球的位置（保持相对位置）
-      const group = this.ornamentSystem.getClickedGroupOrnaments()
-      group.forEach((o, idx) => {
-        const relativePos = this.clickedGroupRelativePositions.get(idx)
-        if (relativePos) {
-          const newPos = targetPos.clone().add(relativePos)
-          o.mesh.position.copy(newPos)
-        }
-      })
-      // 相机看向选中群组中心
-      this.camera.lookAt(targetPos.x, targetPos.y, targetPos.z)
-    } else {
-      this.camera.lookAt(0, 0.5, 0)
-    }
+    this.camera.lookAt(0, 0.5, 0)
 
     // 鼠标交互
     if (this.mouseActive) {
